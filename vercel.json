@@ -4,7 +4,13 @@
   "installCommand": "npm install && npm --prefix ui install",
   "buildCommand": "npm --prefix ui run build",
   "outputDirectory": "ui/dist",
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/api/blogs", "destination": "/api/blogs/[[...slug]]" },
+    { "source": "/api/admin/properties", "destination": "/api/admin/properties/[[...id]]" },
+    { "source": "/api/admin/notices", "destination": "/api/admin/notices/[[...id]]" },
+    { "source": "/api/admin/blogs", "destination": "/api/admin/blogs/[[...id]]" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
