@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import {
   ApiError, createNotice, deleteNotice, listNotices, updateNotice, type AdminNotice,
 } from './api';
-import { Banner, Button, Card, Checkbox, Field, Input, Textarea } from './admin-ui';
+import {
+  Banner, Button, Card, Checkbox, Field, Input, Textarea, useSaveShortcut, useUnsavedGuard,
+} from './admin-ui';
 
 const empty = (): AdminNotice => ({
   id: 0,
@@ -26,10 +28,30 @@ const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
 export function NoticesAdmin({ onExpired }: { onExpired: () => void }) {
   const [items, setItems] = useState<AdminNotice[]>([]);
   const [editing, setEditing] = useState<AdminNotice | null>(null);
+  // The form as it was opened, to tell edited from untouched.
+  const [original, setOriginal] = useState<AdminNotice | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const dirty = editing !== null && JSON.stringify(editing) !== JSON.stringify(original);
+  useUnsavedGuard(dirty);
+  useSaveShortcut(editing !== null && !saving, () => void save());
+
+  const closeEditor = () => {
+    if (dirty && !confirm('Discard unsaved changes?')) return;
+    setEditing(null);
+    setOriginal(null);
+  };
+
+  const openEditor = (n: AdminNotice, asNew: boolean) => {
+    setEditing(n);
+    setOriginal(n);
+    setIsNew(asNew);
+    setError(null);
+  };
 
   const fail = (e: unknown) => {
     if (e instanceof ApiError && e.unauthorised) return onExpired();
@@ -50,7 +72,9 @@ export function NoticesAdmin({ onExpired }: { onExpired: () => void }) {
     try {
       if (isNew) await createNotice(editing);
       else await updateNotice(editing.id, editing);
+      setNotice(isNew ? 'Notice created.' : 'Changes saved.');
       setEditing(null);
+      setOriginal(null);
       await refresh();
     } catch (e) {
       fail(e);
@@ -63,6 +87,7 @@ export function NoticesAdmin({ onExpired }: { onExpired: () => void }) {
     if (!confirm('Delete this notice?')) return;
     try {
       await deleteNotice(n.id);
+      setNotice('Notice deleted.');
       await refresh();
     } catch (e) {
       fail(e);
@@ -78,7 +103,7 @@ export function NoticesAdmin({ onExpired }: { onExpired: () => void }) {
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">{isNew ? 'New notice' : 'Edit notice'}</h2>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={closeEditor}>Cancel</Button>
             <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </div>
@@ -117,12 +142,11 @@ export function NoticesAdmin({ onExpired }: { onExpired: () => void }) {
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">Notices</h2>
-        <Button onClick={() => { setEditing(empty()); setIsNew(true); setError(null); }}>
-          + New notice
-        </Button>
+        <Button onClick={() => openEditor(empty(), true)}>+ New notice</Button>
       </div>
 
       {error && <Banner kind="error">{error}</Banner>}
+      {notice && <Banner kind="success">{notice}</Banner>}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
@@ -145,9 +169,7 @@ export function NoticesAdmin({ onExpired }: { onExpired: () => void }) {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => { setEditing(n); setIsNew(false); setError(null); }}>
-                  Edit
-                </Button>
+                <Button variant="ghost" onClick={() => openEditor(n, false)}>Edit</Button>
                 <Button variant="danger" onClick={() => remove(n)}>Delete</Button>
               </div>
             </Card>

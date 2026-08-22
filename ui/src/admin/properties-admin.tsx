@@ -6,7 +6,7 @@ import {
 } from './api';
 import {
   Banner, Button, Card, Checkbox, FactList, Field, ImageList, Input, ListControls,
-  StringList, type StatusFilter,
+  StringList, useSaveShortcut, useUnsavedGuard, type StatusFilter,
 } from './admin-ui';
 
 /** A blank listing. Kept in one place so "new" and "reset" cannot drift apart. */
@@ -42,6 +42,8 @@ const slugify = (s: string) =>
 export function PropertiesAdmin({ onExpired }: { onExpired: () => void }) {
   const [items, setItems] = useState<AdminProperty[]>([]);
   const [editing, setEditing] = useState<AdminProperty | null>(null);
+  // The form as it was opened, to tell edited from untouched.
+  const [original, setOriginal] = useState<AdminProperty | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -75,6 +77,25 @@ export function PropertiesAdmin({ onExpired }: { onExpired: () => void }) {
     });
   }, [items, query, status]);
 
+  const dirty = editing !== null && JSON.stringify(editing) !== JSON.stringify(original);
+  useUnsavedGuard(dirty);
+  useSaveShortcut(editing !== null && !saving, () => void save());
+
+  /** Leave the form, checking first if there is anything to lose. */
+  const closeEditor = () => {
+    if (dirty && !confirm('Discard unsaved changes?')) return;
+    setEditing(null);
+    setOriginal(null);
+  };
+
+  /** Open the form on a listing, remembering how it started. */
+  const openEditor = (p: AdminProperty, asNew: boolean) => {
+    setEditing(p);
+    setOriginal(p);
+    setIsNew(asNew);
+    setError(null);
+  };
+
   const fail = (e: unknown) => {
     if (e instanceof ApiError && e.unauthorised) return onExpired();
     setError(e instanceof Error ? e.message : 'Something went wrong');
@@ -106,6 +127,7 @@ export function PropertiesAdmin({ onExpired }: { onExpired: () => void }) {
       }
       setNotice(isNew ? 'Property created.' : 'Changes saved.');
       setEditing(null);
+      setOriginal(null);
       await refresh();
     } catch (e) {
       fail(e);
@@ -135,7 +157,7 @@ export function PropertiesAdmin({ onExpired }: { onExpired: () => void }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">{isNew ? 'New property' : `Editing ${editing.name}`}</h2>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={closeEditor}>Cancel</Button>
             <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </div>
@@ -197,8 +219,14 @@ export function PropertiesAdmin({ onExpired }: { onExpired: () => void }) {
         <div className="grid gap-5 lg:grid-cols-2">
           <Card className="flex flex-col gap-3">
             <h3 className="font-medium">Key figures</h3>
-            <p className="text-xs text-muted-foreground">The few shown on the card, e.g. Beds · 4.</p>
-            <FactList values={editing.specs ?? []} onChange={(specs) => set('specs', specs)} />
+            <p className="text-xs text-muted-foreground">
+              Only the first three appear on the card, e.g. Beds · 4.
+            </p>
+            <FactList
+              values={editing.specs ?? []}
+              onChange={(specs) => set('specs', specs)}
+              visibleCount={3}
+            />
           </Card>
 
           <Card className="flex flex-col gap-3">
@@ -246,15 +274,7 @@ export function PropertiesAdmin({ onExpired }: { onExpired: () => void }) {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">Properties</h2>
-        <Button
-          onClick={() => {
-            setEditing(empty());
-            setIsNew(true);
-            setError(null);
-          }}
-        >
-          + New property
-        </Button>
+        <Button onClick={() => openEditor(empty(), true)}>+ New property</Button>
       </div>
 
       {error && <Banner kind="error">{error}</Banner>}
@@ -319,16 +339,7 @@ export function PropertiesAdmin({ onExpired }: { onExpired: () => void }) {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setEditing(p);
-                    setIsNew(false);
-                    setError(null);
-                  }}
-                >
-                  Edit
-                </Button>
+                <Button variant="ghost" onClick={() => openEditor(p, false)}>Edit</Button>
                 <Button variant="danger" onClick={() => remove(p)}>Delete</Button>
               </div>
             </Card>

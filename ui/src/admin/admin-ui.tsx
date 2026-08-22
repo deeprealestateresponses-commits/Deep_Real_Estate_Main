@@ -3,9 +3,41 @@
    Plain Tailwind on the site's own tokens rather than a second design system —
    the PHP panel this replaces shipped an entire purchased admin theme with 88
    vendor libraries to render what amounts to some forms and tables. */
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { uploadImage } from './api';
+
+/*
+  Ctrl/Cmd+S saves the open editor. preventDefault matters: without it the
+  browser opens its own "save page" dialog over the panel.
+*/
+export function useSaveShortcut(enabled: boolean, onSave: () => void) {
+  useEffect(() => {
+    if (!enabled) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        onSave();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [enabled, onSave]);
+}
+
+/*
+  Warns on refresh / tab close while an editor holds unsaved edits. The in-app
+  Cancel path is guarded separately with confirm(), because beforeunload only
+  fires for the browser's own navigation.
+*/
+export function useUnsavedGuard(dirty: boolean) {
+  useEffect(() => {
+    if (!dirty) return;
+    const onLeave = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', onLeave);
+    return () => window.removeEventListener('beforeunload', onLeave);
+  }, [dirty]);
+}
 
 export function Button({
   children,
@@ -69,6 +101,10 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...props} className={cn(control, 'resize-y', props.className)} />;
+}
+
+export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select {...props} className={cn(control, 'cursor-pointer', props.className)} />;
 }
 
 export function Checkbox({
@@ -222,40 +258,158 @@ export function StringList({
   );
 }
 
-/** The {label, value} rows behind both Specs and the Overview table. */
+/*
+  Labels offered as suggestions on the fact rows. Only a prompt: the field stays
+  free text, because the useful labels differ per property — an apartment lists
+  Beds and Baths, a plot lists frontage and road width.
+*/
+const LABEL_SUGGESTIONS = [
+  'Beds', 'Baths', 'Bedrooms', 'Bathrooms', 'Balconies', 'Parking', 'Floor',
+  'Built-up area', 'Plot size', 'SqFt', 'Road width', 'Rate',
+  'Type', 'Status', 'Facing', 'Furnishing', 'Builder', 'Corner property',
+];
+
+const COUNTS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10+'];
+
+/*
+  Values that really are a closed set, keyed by lowercased label. Anything not
+  listed here keeps a plain text box — most figures (areas, rates) are numbers
+  with units and cannot be enumerated.
+*/
+const VALUE_OPTIONS: Record<string, string[]> = {
+  beds: COUNTS,
+  bedrooms: COUNTS,
+  baths: COUNTS,
+  bathrooms: COUNTS,
+  balconies: COUNTS,
+  parking: COUNTS,
+  floor: COUNTS,
+  floors: COUNTS,
+  facing: [
+    'North', 'North-East', 'East', 'South-East',
+    'South', 'South-West', 'West', 'North-West',
+  ],
+  status: ['For Sale', 'For Rent', 'Sold', 'Under construction', 'Ready to move'],
+  furnishing: ['Unfurnished', 'Semi-furnished', 'Furnished'],
+  type: [
+    'Apartment · Residential', 'Independent Floor · Residential',
+    'Villa · Residential', 'Farmhouse Plot · Residential',
+    'Plot · Residential', 'Commercial',
+  ],
+  'corner property': ['Yes', 'No'],
+};
+
+const OTHER = ' other';
+
+/*
+  The value half of a fact row: a dropdown when the label names a closed set,
+  a text box otherwise.
+
+  Two cases deliberately fall back to text so no existing entry becomes
+  unreachable: a stored value that is not one of the options (SqFt 2,664, or a
+  Status someone typed by hand before this existed), and picking "Other…".
+*/
+function FactValue({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [custom, setCustom] = useState(false);
+  const options = VALUE_OPTIONS[label.trim().toLowerCase()];
+  const fits = value === '' || (options?.includes(value) ?? false);
+
+  if (!options || custom || !fits) {
+    return (
+      <Input
+        value={value}
+        placeholder="Value (e.g. 4)"
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  }
+
+  return (
+    <Select
+      value={value}
+      onChange={(e) => {
+        if (e.target.value === OTHER) {
+          setCustom(true);
+          onChange('');
+        } else {
+          onChange(e.target.value);
+        }
+      }}
+    >
+      <option value="">—</option>
+      {options.map((o) => (
+        <option key={o} value={o}>{o}</option>
+      ))}
+      <option value={OTHER}>Other…</option>
+    </Select>
+  );
+}
+
+/*
+  The {label, value} rows behind both Specs and the Overview table.
+
+  `visibleCount` marks the rows past a cut-off as not appearing on the property
+  card, which shows only the first few.
+*/
 export function FactList({
   values,
   onChange,
+  visibleCount,
 }: {
   values: { label: string; value: string }[];
   onChange: (next: { label: string; value: string }[]) => void;
+  visibleCount?: number;
 }) {
   const set = (i: number, patch: Partial<{ label: string; value: string }>) =>
     onChange(values.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   return (
     <div className="flex flex-col gap-2">
-      {values.map((row, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <Input
-            value={row.label}
-            placeholder="Label (e.g. Bedrooms)"
-            onChange={(e) => set(i, { label: e.target.value })}
-          />
-          <Input
-            value={row.value}
-            placeholder="Value (e.g. 4)"
-            onChange={(e) => set(i, { value: e.target.value })}
-          />
-          <Button
-            variant="ghost"
-            onClick={() => onChange(values.filter((_, j) => j !== i))}
-            className="shrink-0 px-3"
-          >
-            ✕
-          </Button>
-        </div>
-      ))}
+      <datalist id="fact-labels">
+        {LABEL_SUGGESTIONS.map((l) => (
+          <option key={l} value={l} />
+        ))}
+      </datalist>
+
+      {values.map((row, i) => {
+        const offCard = visibleCount !== undefined && i >= visibleCount;
+        return (
+          <div key={i} className={cn('flex flex-col gap-1', offCard && 'opacity-60')}>
+            <div className="flex items-center gap-2">
+              <Input
+                list="fact-labels"
+                value={row.label}
+                placeholder="Label (e.g. Bedrooms)"
+                onChange={(e) => set(i, { label: e.target.value })}
+              />
+              <FactValue
+                label={row.label}
+                value={row.value}
+                onChange={(value) => set(i, { value })}
+              />
+              <Button
+                variant="ghost"
+                onClick={() => onChange(values.filter((_, j) => j !== i))}
+                className="shrink-0 px-3"
+              >
+                ✕
+              </Button>
+            </div>
+            {offCard && (
+              <span className="text-xs text-muted-foreground">Not shown on the card.</span>
+            )}
+          </div>
+        );
+      })}
+
       <Button
         variant="ghost"
         onClick={() => onChange([...values, { label: '', value: '' }])}

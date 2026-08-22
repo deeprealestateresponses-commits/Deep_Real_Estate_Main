@@ -5,7 +5,7 @@ import {
 } from './api';
 import {
   Banner, Button, Card, Checkbox, Field, Input, ListControls, Textarea,
-  type StatusFilter,
+  useSaveShortcut, useUnsavedGuard, type StatusFilter,
 } from './admin-ui';
 import { uploadImage } from './api';
 
@@ -32,11 +32,14 @@ const slugify = (s: string) =>
 export function BlogsAdmin({ onExpired }: { onExpired: () => void }) {
   const [items, setItems] = useState<AdminBlog[]>([]);
   const [editing, setEditing] = useState<AdminBlog | null>(null);
+  // The form as it was opened, to tell edited from untouched.
+  const [original, setOriginal] = useState<AdminBlog | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
 
@@ -63,6 +66,23 @@ export function BlogsAdmin({ onExpired }: { onExpired: () => void }) {
     });
   }, [items, query, status]);
 
+  const dirty = editing !== null && JSON.stringify(editing) !== JSON.stringify(original);
+  useUnsavedGuard(dirty);
+  useSaveShortcut(editing !== null && !saving, () => void save());
+
+  const closeEditor = () => {
+    if (dirty && !confirm('Discard unsaved changes?')) return;
+    setEditing(null);
+    setOriginal(null);
+  };
+
+  const openEditor = (b: AdminBlog, asNew: boolean) => {
+    setEditing(b);
+    setOriginal(b);
+    setIsNew(asNew);
+    setError(null);
+  };
+
   const fail = (e: unknown) => {
     if (e instanceof ApiError && e.unauthorised) return onExpired();
     setError(e instanceof Error ? e.message : 'Something went wrong');
@@ -84,7 +104,9 @@ export function BlogsAdmin({ onExpired }: { onExpired: () => void }) {
       if (!slug) throw new Error('Give the article a title first');
       if (isNew) await createBlog({ ...editing, slug });
       else await updateBlog(editing.id, { ...editing, slug });
+      setNotice(isNew ? 'Article created.' : 'Changes saved.');
       setEditing(null);
+      setOriginal(null);
       await refresh();
     } catch (e) {
       fail(e);
@@ -97,6 +119,7 @@ export function BlogsAdmin({ onExpired }: { onExpired: () => void }) {
     if (!confirm(`Delete "${b.title}"?`)) return;
     try {
       await deleteBlog(b.id);
+      setNotice('Article deleted.');
       await refresh();
     } catch (e) {
       fail(e);
@@ -112,7 +135,7 @@ export function BlogsAdmin({ onExpired }: { onExpired: () => void }) {
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">{isNew ? 'New article' : 'Edit article'}</h2>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={closeEditor}>Cancel</Button>
             <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
           </div>
         </div>
@@ -191,12 +214,13 @@ export function BlogsAdmin({ onExpired }: { onExpired: () => void }) {
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">Articles</h2>
-        <Button onClick={() => { setEditing(empty()); setIsNew(true); setError(null); }}>
+        <Button onClick={() => openEditor(empty(), true)}>
           + New article
         </Button>
       </div>
 
       {error && <Banner kind="error">{error}</Banner>}
+      {notice && <Banner kind="success">{notice}</Banner>}
 
       {!loading && items.length > 0 && (
         <ListControls
@@ -251,7 +275,7 @@ export function BlogsAdmin({ onExpired }: { onExpired: () => void }) {
                 <p className="line-clamp-1 text-sm text-muted-foreground">{b.excerpt}</p>
               </div>
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => { setEditing(b); setIsNew(false); setError(null); }}>
+                <Button variant="ghost" onClick={() => openEditor(b, false)}>
                   Edit
                 </Button>
                 <Button variant="danger" onClick={() => remove(b)}>Delete</Button>
