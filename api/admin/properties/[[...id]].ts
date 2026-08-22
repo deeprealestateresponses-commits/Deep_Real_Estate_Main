@@ -1,8 +1,14 @@
-/* /api/admin/properties/:id — read, update or delete one listing. */
+/*
+  /api/admin/properties        — GET every listing (drafts included), POST a new one
+  /api/admin/properties/:id     — GET, PUT or DELETE one listing
+
+  One function via an optional catch-all, to stay under the Hobby plan's
+  12-function cap. requireSession is the first statement of every path.
+*/
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '../../_lib/db.js';
 import { requireSession } from '../../_lib/auth.js';
-import { handler, json, methodNotAllowed, noStore, notFound } from '../../_lib/http.js';
+import { conflict, handler, json, methodNotAllowed, noStore, notFound } from '../../_lib/http.js';
 import { toAdminProperty } from '../../_lib/shape.js';
 import { propertyInput } from '../../_lib/validate.js';
 
@@ -10,8 +16,46 @@ export default handler(async (req: VercelRequest, res: VercelResponse) => {
   if (!requireSession(req, res)) return;   // must stay the first statement
   noStore(res);
 
-  const id = String(req.query.id ?? '');
+  const segments = req.query.id;
+  const id = Array.isArray(segments) ? segments[0] : segments;
 
+  /* ---- collection: /api/admin/properties ---- */
+  if (!id) {
+    if (req.method === 'GET') {
+      const rows = await sql`
+        SELECT * FROM properties ORDER BY sort_order ASC, created_at DESC
+      `;
+      return json(res, 200, { properties: rows.map(toAdminProperty) });
+    }
+
+    if (req.method === 'POST') {
+      const p = propertyInput(req.body, { withId: true });
+
+      const existing = await sql`SELECT 1 FROM properties WHERE id = ${p.id!} LIMIT 1`;
+      if (existing.length > 0) {
+        throw conflict(`A property with the id "${p.id}" already exists`);
+      }
+
+      const rows = await sql`
+        INSERT INTO properties (
+          id, property_id, name, location, address, price, price_unit, badge,
+          image, images, specs, overview, description, features, published, sort_order
+        ) VALUES (
+          ${p.id!}, ${p.propertyId}, ${p.name}, ${p.location}, ${p.address}, ${p.price},
+          ${p.priceUnit}, ${p.badge}, ${p.image},
+          ${JSON.stringify(p.images)}::jsonb, ${JSON.stringify(p.specs)}::jsonb,
+          ${JSON.stringify(p.overview)}::jsonb, ${JSON.stringify(p.description)}::jsonb,
+          ${JSON.stringify(p.features)}::jsonb, ${p.published}, ${p.sortOrder}
+        )
+        RETURNING *
+      `;
+      return json(res, 201, { property: toAdminProperty(rows[0]) });
+    }
+
+    return methodNotAllowed(res, ['GET', 'POST']);
+  }
+
+  /* ---- one listing: /api/admin/properties/:id ---- */
   if (req.method === 'GET') {
     const rows = await sql`SELECT * FROM properties WHERE id = ${id} LIMIT 1`;
     if (rows.length === 0) throw notFound('Property not found');
@@ -19,8 +63,8 @@ export default handler(async (req: VercelRequest, res: VercelResponse) => {
   }
 
   if (req.method === 'PUT') {
-    // The id is taken from the URL, never the body: renaming a listing would
-    // break every link that already points at it.
+    // The id comes from the URL, never the body: renaming would break every
+    // link that already points at the listing.
     const p = propertyInput(req.body, { withId: false });
 
     const rows = await sql`

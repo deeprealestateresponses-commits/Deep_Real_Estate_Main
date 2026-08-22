@@ -84,6 +84,21 @@ for (const p of seed) {
 */
 const API_DIR = join(root, '.local-api');
 
+/* Parse a dynamic route filename into its param name and whether it is a
+   catch-all. Mirrors Vercel's own file conventions so the harness routes the
+   same way the deployment does:
+     [id].js        -> { name:'id',   catchAll:false }
+     [action].js    -> { name:'action', catchAll:false }
+     [...id].js     -> { name:'id',   catchAll:true  }
+     [[...slug]].js -> { name:'slug', catchAll:true  }  (optional) */
+function parseDynamic(fname) {
+  let m;
+  if ((m = /^\[\[\.\.\.(.+)\]\]\.js$/.exec(fname))) return { name: m[1], catchAll: true };
+  if ((m = /^\[\.\.\.(.+)\]\.js$/.exec(fname))) return { name: m[1], catchAll: true };
+  if ((m = /^\[(.+)\]\.js$/.exec(fname))) return { name: m[1], catchAll: false };
+  return null;
+}
+
 function resolveRoute(pathname) {
   const rel = pathname.replace(/^\/api\//, '').replace(/\/$/, '');
   const parts = rel.split('/').filter(Boolean);
@@ -94,16 +109,28 @@ function resolveRoute(pathname) {
   const asIndex = join(API_DIR, ...parts, 'index.js');
   if (existsSync(asIndex)) return { file: asIndex, params: {} };
 
-  // Dynamic segment: drop the last part, look for a [param] sibling.
+  // Optional catch-all matching the directory root, no trailing segment:
+  //   /api/blogs -> api/blogs/[[...slug]].js  (slug undefined)
+  const selfDir = join(API_DIR, ...parts);
+  if (existsSync(selfDir)) {
+    const opt = readdirSync(selfDir).find((f) => /^\[\[\.\.\..+\]\]\.js$/.test(f));
+    if (opt) {
+      const d = parseDynamic(opt);
+      return { file: join(selfDir, opt), params: { [d.name]: undefined } };
+    }
+  }
+
+  // Dynamic segment: drop the last part, look for a dynamic sibling and pass the
+  // segment as its param (an array for a catch-all, a string otherwise).
   if (parts.length > 0) {
     const head = parts.slice(0, -1);
-    const last = parts.at(-1);
+    const last = decodeURIComponent(parts.at(-1));
     const dir = join(API_DIR, ...head);
     if (existsSync(dir)) {
-      const dyn = readdirSync(dir).find((f) => /^\[.+\]\.js$/.test(f));
+      const dyn = readdirSync(dir).find((f) => parseDynamic(f));
       if (dyn) {
-        const name = dyn.slice(1, -4); // [id].js -> id
-        return { file: join(dir, dyn), params: { [name]: decodeURIComponent(last) } };
+        const d = parseDynamic(dyn);
+        return { file: join(dir, dyn), params: { [d.name]: d.catchAll ? [last] : last } };
       }
     }
   }

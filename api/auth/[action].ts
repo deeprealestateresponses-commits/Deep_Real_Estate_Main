@@ -1,25 +1,30 @@
 /*
-  POST /api/auth/login — { password } → session cookie.
+  /api/auth/:action — login, logout, session, in one function.
 
-  Throttling is recorded in the database rather than in memory: each serverless
-  invocation is a fresh process, so an in-process counter would reset constantly
-  and effectively allow unlimited guessing.
+  These were three files; the Hobby plan caps a deployment at 12 serverless
+  functions and the API had 15, so siblings that differ only by a verb are
+  folded into one dynamic route. The public URLs are unchanged — /api/auth/login,
+  /api/auth/logout, /api/auth/session all still resolve here — so nothing on the
+  front end changes.
 
-  Three layers, because a per-IP counter alone is weak here:
+  LOGIN throttling is recorded in the database rather than in memory: each
+  serverless invocation is a fresh process, so an in-process counter would reset
+  constantly and effectively allow unlimited guessing. Three layers, because a
+  per-IP counter alone is weak here:
     · per-IP    — the ordinary case;
     · backoff   — the delay after each failure doubles, so a patient attacker
                   gets slower rather than merely capped;
     · global    — there is exactly ONE account, so a ceiling across all IPs is
-                  meaningful and is what actually bounds a botnet or an IPv6 /64
-                  (a single subscriber is routinely handed 2^64 addresses, i.e.
-                  effectively unlimited per-IP budgets).
-  There is no CAPTCHA by choice: on a one-user panel these bound an attack more
-  tightly than a widget would, with no third party and nothing to load.
+                  meaningful and is what bounds a botnet or an IPv6 /64.
+  No CAPTCHA by choice: on a one-user panel these bound an attack more tightly
+  than a widget would, with no third party and nothing to load.
 */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '../_lib/db.js';
-import { createSessionToken, setSessionCookie, verifyPassword } from '../_lib/auth.js';
-import { handler, json, methodNotAllowed, noStore } from '../_lib/http.js';
+import {
+  clearSessionCookie, createSessionToken, hasValidSession, setSessionCookie, verifyPassword,
+} from '../_lib/auth.js';
+import { handler, json, methodNotAllowed, noStore, notFound } from '../_lib/http.js';
 
 const PER_IP_MAX = 10;
 /** Across every IP in the window. One account — nobody legitimate needs more. */
@@ -35,13 +40,12 @@ const BACKOFF_CAP_S = 300;
 /*
   How far back a successful login makes an address "known".
 
-  This exists because a global cap, on its own, hands an attacker a denial of
-  service: rotate addresses, trip the ceiling, and the owner is locked out of
-  their own panel for the window — repeatedly. An address that has signed in
-  successfully is exempt from the GLOBAL ceiling (never from the per-IP one), so
-  the owner's usual location keeps working while an attacker — who by definition
-  has never succeeded — stays bounded. Verified: without this, a correct password
-  from a clean address returns 429 while the ceiling is tripped.
+  A global cap, on its own, hands an attacker a denial of service: rotate
+  addresses, trip the ceiling, and the owner is locked out of their own panel for
+  the window. An address that has signed in successfully is exempt from the
+  GLOBAL ceiling (never from the per-IP one), so the owner's usual location keeps
+  working while an attacker — who by definition has never succeeded — stays
+  bounded.
 */
 const KNOWN_IP_WINDOW = '30 days';
 
@@ -49,9 +53,8 @@ const KNOWN_IP_WINDOW = '30 days';
   The client's address, taken from something the client cannot set.
 
   `x-forwarded-for` is a chain the caller can prepend to, so its LEFTMOST entry
-  is attacker-controlled — reading that would let anyone reset their own counter
-  with a header line. Vercel's edge sets `x-real-ip` itself; failing that, the
-  RIGHTMOST forwarded entry is the one appended by the nearest trusted proxy.
+  is attacker-controlled. Vercel's edge sets `x-real-ip` itself; failing that,
+  the RIGHTMOST forwarded entry is the one appended by the nearest trusted proxy.
 */
 function clientIp(req: VercelRequest): string {
   const real = req.headers['x-real-ip'];
@@ -74,7 +77,7 @@ const tooMany = (res: VercelResponse, retryAfter: number) => {
   });
 };
 
-export default handler(async (req: VercelRequest, res: VercelResponse) => {
+async function doLogin(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   noStore(res);
 
@@ -86,9 +89,6 @@ export default handler(async (req: VercelRequest, res: VercelResponse) => {
 
   const ip = clientIp(req);
 
-  /* One round trip for every check. `since_last` drives the backoff, the global
-     count is what a rotating-IP attacker cannot escape, and `ip_successes` is
-     what stops that same ceiling locking the owner out. */
   const [stats] = (await sql`
     SELECT
       COUNT(*) FILTER (
@@ -117,11 +117,9 @@ export default handler(async (req: VercelRequest, res: VercelResponse) => {
   const sinceLast = stats?.since_last;
   const knownIp = (stats?.ip_successes ?? 0) > 0;
 
-  // Per-IP and backoff always apply, including to a known address.
   if (ipFails >= PER_IP_MAX) return tooMany(res, 900);
   if (!knownIp && globalFails >= GLOBAL_MAX) return tooMany(res, 900);
 
-  // Each failure past the third doubles the wait before the next is accepted.
   if (ipFails >= BACKOFF_AFTER) {
     const required = Math.min(2 ** (ipFails - BACKOFF_AFTER + 2), BACKOFF_CAP_S);
     if (sinceLast !== null && sinceLast !== undefined && sinceLast < required) {
@@ -133,18 +131,38 @@ export default handler(async (req: VercelRequest, res: VercelResponse) => {
   const ok = typeof password === 'string' && password.length > 0 && verifyPassword(password, stored);
 
   await sql`INSERT INTO login_attempts (ip, succeeded) VALUES (${ip}, ${ok})`;
-
-  /* Sweep on the way out. This is the only unauthenticated write path in the
-     API, so without it the table grows without bound — and it stores IP
-     addresses, which should not be kept indefinitely. Cheap: the table stays
-     small precisely because this runs, and the ip/attempted_at index covers it. */
+  // Sweep on the way out: the only unauthenticated write path, and it stores IPs.
   await sql`DELETE FROM login_attempts WHERE attempted_at < now() - ${RETENTION}::interval`;
 
-  if (!ok) {
-    // One message for every failure: never reveal whether anything matched.
-    return json(res, 401, { error: 'Incorrect password' });
-  }
+  if (!ok) return json(res, 401, { error: 'Incorrect password' });
 
   setSessionCookie(req, res, createSessionToken());
   json(res, 200, { ok: true });
+}
+
+function doLogout(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  noStore(res);
+  clearSessionCookie(req, res);
+  json(res, 200, { ok: true });
+}
+
+function doSession(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  noStore(res);
+  json(res, 200, { authenticated: hasValidSession(req) });
+}
+
+export default handler(async (req: VercelRequest, res: VercelResponse) => {
+  const action = String(req.query.action ?? '');
+  switch (action) {
+    case 'login':
+      return doLogin(req, res);
+    case 'logout':
+      return doLogout(req, res);
+    case 'session':
+      return doSession(req, res);
+    default:
+      throw notFound('Unknown auth action');
+  }
 });
