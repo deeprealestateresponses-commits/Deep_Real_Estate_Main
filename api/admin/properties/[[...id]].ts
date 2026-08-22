@@ -8,17 +8,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '../../_lib/db.js';
 import { requireSession } from '../../_lib/auth.js';
-import { conflict, handler, json, methodNotAllowed, noStore, notFound } from '../../_lib/http.js';
+import { conflict, handler, json, methodNotAllowed, noStore, notFound, segment } from '../../_lib/http.js';
 import { toAdminProperty } from '../../_lib/shape.js';
 import { propertyInput } from '../../_lib/validate.js';
 
 export default handler(async (req: VercelRequest, res: VercelResponse) => {
-  if (req.query.__debug) return json(res, 200, { url: req.url, query: req.query, method: req.method });
   if (!requireSession(req, res)) return;   // must stay the first statement
   noStore(res);
 
-  const segments = req.query.id;
-  const id = Array.isArray(segments) ? segments[0] : segments;
+  const id = segment(req, 'id');
 
   /* ---- collection: /api/admin/properties ---- */
   if (!id) {

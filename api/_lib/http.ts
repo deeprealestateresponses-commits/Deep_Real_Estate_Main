@@ -11,6 +11,18 @@ export function methodNotAllowed(res: VercelResponse, allowed: string[]) {
   json(res, 405, { error: 'Method not allowed' });
 }
 
+/*
+  Read the single segment of an optional catch-all route ([[...id]].ts).
+
+  Vercel injects that segment under the *literal* filename key — `[...id]`, not
+  `id` — while the local dev harness uses the bare name. Read both so one handler
+  works in both places. Returns undefined for the base path (the collection).
+*/
+export function segment(req: VercelRequest, name: string): string | undefined {
+  const raw = req.query[name] ?? req.query[`[...${name}]`];
+  return Array.isArray(raw) ? raw[0] : raw;
+}
+
 /** A request-handling error whose message is safe to show the caller. */
 export class HttpError extends Error {
   status: number;

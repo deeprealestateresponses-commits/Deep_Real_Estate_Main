@@ -8,7 +8,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '../../_lib/db.js';
 import { requireSession } from '../../_lib/auth.js';
-import { badRequest, handler, json, methodNotAllowed, noStore, notFound } from '../../_lib/http.js';
+import { badRequest, handler, json, methodNotAllowed, noStore, notFound, segment } from '../../_lib/http.js';
 import { toNotice } from '../../_lib/shape.js';
 import { noticeInput } from '../../_lib/validate.js';
 
@@ -16,8 +16,7 @@ export default handler(async (req: VercelRequest, res: VercelResponse) => {
   if (!requireSession(req, res)) return;   // must stay the first statement
   noStore(res);
 
-  const segments = req.query.id;
-  const idParam = Array.isArray(segments) ? segments[0] : segments;
+  const idParam = segment(req, 'id');
 
   /* ---- collection ---- */
   if (!idParam) {

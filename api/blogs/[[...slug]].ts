@@ -7,15 +7,13 @@
 */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '../_lib/db.js';
-import { handler, json, methodNotAllowed, notFound, publicCache } from '../_lib/http.js';
+import { handler, json, methodNotAllowed, notFound, publicCache, segment } from '../_lib/http.js';
 import { toBlog, toBlogSummary } from '../_lib/shape.js';
 
 export default handler(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
 
-  // [[...slug]] arrives as an array of path segments, or undefined at the root.
-  const segments = req.query.slug;
-  const slug = Array.isArray(segments) ? segments[0] : segments;
+  const slug = segment(req, 'slug');
 
   if (!slug) {
     const rows = await sql`

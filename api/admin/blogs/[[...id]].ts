@@ -9,7 +9,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '../../_lib/db.js';
 import { requireSession } from '../../_lib/auth.js';
 import {
-  badRequest, conflict, handler, json, methodNotAllowed, noStore, notFound,
+  badRequest, conflict, handler, json, methodNotAllowed, noStore, notFound, segment,
 } from '../../_lib/http.js';
 import { toBlog } from '../../_lib/shape.js';
 import { blogInput } from '../../_lib/validate.js';
@@ -18,8 +18,7 @@ export default handler(async (req: VercelRequest, res: VercelResponse) => {
   if (!requireSession(req, res)) return;   // must stay the first statement
   noStore(res);
 
-  const segments = req.query.id;
-  const idParam = Array.isArray(segments) ? segments[0] : segments;
+  const idParam = segment(req, 'id');
 
   /* ---- collection ---- */
   if (!idParam) {
