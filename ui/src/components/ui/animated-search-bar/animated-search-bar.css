@@ -1,0 +1,191 @@
+/* Styles for the gooey search bar.
+
+   The supplied component referenced these class names but shipped no CSS with
+   them, so this file is written to match what the markup and the motion
+   variants expect:
+
+   · `.button-content` carries the SVG goo filter. The filter blurs and then
+     re-thresholds alpha, so two white shapes that overlap read as one blob —
+     which is what makes a result look like it is being squeezed out of the
+     pill rather than appearing under it.
+   · `.button-content-inner` is the element framer-motion animates (x and
+     width), so it owns the pill's size; `.search-btn` fills it.
+   · results are absolutely positioned at the pill's origin and animated down
+     by `(index + 1) * 50`, so they must start stacked on top of the button. */
+
+.gooey-search .button-content {
+  filter: url(#goo-effect);
+  position: relative;
+}
+
+/* Safari and Chrome-on-iOS render the SVG filter badly enough that the pill
+   flickers; the component detects them and drops the effect rather than
+   shipping the flicker. */
+.gooey-search.no-goo .button-content {
+  filter: none;
+}
+
+.gooey-search .button-content-inner {
+  position: relative;
+  height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+.gooey-search .search-btn {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 48px;
+  border-radius: 24px;
+  background: #ffffff;
+  border: 1px solid rgb(0 0 0 / 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gooey-search .search-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0080c6;
+}
+
+.gooey-search .search-input {
+  width: 100%;
+  height: 100%;
+  padding: 0 18px 0 42px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  border-radius: 24px;
+  font-size: 15px;
+  color: #0b1a27;
+}
+
+.gooey-search .search-input::placeholder {
+  color: rgb(11 26 39 / 0.4);
+}
+
+/* The icon rides outside the pill on its own, which is why it is excluded
+   from the goo group by sitting above it. */
+.gooey-search .separate-element {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: #0080c6;
+  pointer-events: none;
+}
+
+.gooey-search .loading-icon {
+  width: 16px;
+  height: 16px;
+  animation: gooey-spin 1s linear infinite;
+}
+
+@keyframes gooey-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gooey-search .loading-icon {
+    animation: none;
+  }
+}
+
+/* Dark tone. The pill and the result blobs go black together — they have to
+   share a fill for the goo filter to merge them into one shape; a black pill
+   spilling white results would come apart. */
+.gooey-search.tone-dark .search-btn {
+  background: #0b1a27;
+  border-color: rgb(255 255 255 / 0.1);
+}
+
+.gooey-search.tone-dark .search-text {
+  color: #ffffff;
+}
+
+.gooey-search.tone-dark .search-input {
+  color: #ffffff;
+}
+
+.gooey-search.tone-dark .search-input::placeholder {
+  color: rgb(255 255 255 / 0.45);
+}
+
+.gooey-search.tone-dark .separate-element {
+  color: #ffffff;
+}
+
+.gooey-search.tone-dark .search-result {
+  background: #0b1a27;
+}
+
+.gooey-search.tone-dark .search-result-title {
+  color: #ffffff;
+}
+
+.gooey-search.tone-dark .info-icon {
+  color: #38bdf8;
+}
+
+.gooey-search .search-results {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.gooey-search .search-result {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  border-radius: 22px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.gooey-search .search-result-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0b1a27;
+}
+
+.gooey-search .search-result-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gooey-search .info-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: #0080c6;
+}
+
+.gooey-search .no-results {
+  position: absolute;
+  top: 56px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 13px;
+  color: rgb(11 26 39 / 0.55);
+}

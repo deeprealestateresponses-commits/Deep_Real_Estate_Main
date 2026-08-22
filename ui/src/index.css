@@ -1,0 +1,588 @@
+@import "tailwindcss";
+
+/* Class-based dark mode: toggling `.dark` on <html> switches the theme. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+  shadcn/ui token set. Components written against `bg-card`, `text-foreground`,
+  `bg-primary`, `border-border` etc. work unchanged.
+  --primary is Deep Real Estate's brand blue so previews match the real site.
+*/
+:root {
+  --radius: 0.625rem;
+
+  --background: #ffffff;
+  --foreground: #0d1b2a;
+
+  --card: #ffffff;
+  --card-foreground: #0d1b2a;
+
+  --popover: #ffffff;
+  --popover-foreground: #0d1b2a;
+
+  --primary: #0080c6;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0d1b2a;
+
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  --accent: #e2e8f0;
+  --accent-foreground: #0d1b2a;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #0080c6;
+
+  /* animated search bar — recoloured from the original purple/magenta to the
+     brand blue. Kept as its own token block so the effect can be retuned
+     without touching the six layered conic gradients in the component. */
+  --sb-field: #ffffff;
+  --sb-field-text: #0d1b2a;
+  --sb-placeholder: #64788d;
+  --sb-base: #d8e5ef;
+  --sb-base-2: #b9cdda;
+  --sb-glow-1: #0080c6;
+  --sb-glow-2: #3aa9e8;
+  --sb-glow-soft-1: #6fb9e4;
+  --sb-glow-soft-2: #a9d6f0;
+  --sb-halo: #0080c6;
+  --sb-icon-1: #0d1b2a;
+  --sb-icon-2: #63788d;
+  --sb-chip-from: #f6f9fb;
+  --sb-chip-via: #eef4f8;
+  --sb-chip-to: #dbe6ef;
+  --sb-ring: #c2d3e0;
+}
+
+.dark {
+  /* Page sits *below* the header colour (#0b1a27) so the sticky bar reads as a
+     raised surface instead of merging into the background, and cards sit above
+     both. Three distinct planes rather than one flat navy. */
+  --background: #08151f;
+  --foreground: #eef4f8;
+
+  --card: #11232f;
+  --card-foreground: #eef4f8;
+
+  --popover: #11232f;
+  --popover-foreground: #eef4f8;
+
+  --primary: #46b0ec;
+  --primary-foreground: #04121c;
+
+  --secondary: #17293a;
+  --secondary-foreground: #eef4f8;
+
+  --muted: #172a3a;
+  --muted-foreground: #9db2c4;
+
+  --accent: #1f3a4f;
+  --accent-foreground: #eef4f8;
+
+  --destructive: #f87171;
+  --destructive-foreground: #04121c;
+
+  /* lifted from #24455c — borders were too close to the surfaces to define
+     card edges against the darker page */
+  --border: #26425c;
+  --input: #26425c;
+  --ring: #46b0ec;
+
+  /* animated search bar — dark field, same blue glow */
+  --sb-field: #11232f;
+  --sb-field-text: #eef4f8;
+  --sb-placeholder: #8aa6bd;
+  --sb-base: #12283a;
+  --sb-base-2: #1d4160;
+  --sb-glow-1: #0080c6;
+  --sb-glow-2: #46b0ec;
+  --sb-glow-soft-1: #6cc0ea;
+  --sb-glow-soft-2: #a7d8f2;
+  --sb-halo: #46b0ec;
+  --sb-icon-1: #eef4f8;
+  --sb-icon-2: #8aa6bd;
+  --sb-chip-from: #17293a;
+  --sb-chip-via: #11232f;
+  --sb-chip-to: #1f3a4f;
+  --sb-ring: #26425c;
+}
+
+/* Expose the tokens to Tailwind so utilities like bg-card / border-border exist. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* star-button: travelling light.
+     This must live in an `inline` @theme block — otherwise Tailwind emits
+     `animation: var(--animate-star-btn)` with --duration resolved at :root,
+     where the per-button --duration does not exist. */
+  --animate-star-btn: star-btn calc(var(--duration) * 1s) linear infinite;
+
+  /* glowing search bar: slowly rotating ring behind the filter icon.
+     Not a stock Tailwind utility — without this the ring is static. */
+  --animate-spin-slow: spin-slow 4s linear infinite;
+
+  /* shadcn accordion. Declared here rather than pulled in with tw-animate-css,
+     which would be a whole dependency for two keyframes. */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  /* FAQ card: colour travelling around the border. */
+  --animate-border-run: border-run 6s linear infinite;
+
+  /* scroll cue: the wheel running down the mouse barrel. */
+  --animate-scroll-wheel: scroll-wheel 1.6s ease-in-out infinite;
+
+  /* saved-count badge: one beat when the number changes. */
+  --animate-count-pop: count-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* scroll cue arrow: a nudge small enough to stay inside a clipped pill. */
+  --animate-nudge-down: nudge-down 1.4s ease-in-out infinite;
+
+  /* library toggles: a sheen that crosses the pill on hover. */
+  --animate-sheen: sheen 0.9s ease-out;
+}
+
+/* Globe: the texture slides across the sphere so it reads as spin. Declared
+   once here rather than in a <style> block inside the component, which would
+   re-inject the same rules on every mount. */
+@keyframes earth-rotate {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes sheen {
+  from {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+
+@keyframes nudge-down {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+@keyframes count-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  60% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes scroll-wheel {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(11px);
+    opacity: 0;
+  }
+}
+
+/* The border is a conic gradient painted on a wrapper, with the card sitting
+   on top inset by the border width. Animating the angle needs the property to
+   be registered — a plain custom property is a string to the engine and would
+   jump from 0deg to 360deg instead of sweeping. */
+@property --border-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes border-run {
+  to {
+    --border-angle: 360deg;
+  }
+}
+
+/* Radix measures the panel and exposes its height as a custom property; the
+   keyframes just animate to and from it. */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+/* The animated element is a 600px ::before centred with translate(-50%,-50%).
+   An `animation` that sets `transform` replaces the utility transform entirely,
+   so the translate has to be repeated here or the ring flies off-centre. */
+/* liquid-metal-button: the shader mounts its own <canvas> into the container,
+   so it has to be stretched from CSS. Declared here rather than injected into
+   <head> at runtime, which is what the original snippet did. */
+.shader-container-exploded canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  border-radius: 100px !important;
+}
+
+/* logo marquee — the track holds the set twice, so translating by exactly
+   -50% lands on an identical frame and the loop is seamless. */
+@keyframes marquee-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes marquee-right {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes ripple-animation {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(4);
+    opacity: 0;
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes star-btn {
+  0% {
+    offset-distance: 0%;
+  }
+  100% {
+    offset-distance: 100%;
+  }
+}
+
+@layer base {
+  /* Tailwind v4 defaults border-color to currentColor; restore the token. */
+  * {
+    border-color: var(--border);
+  }
+
+  /* Smooth scrolling is opt-out for anyone who has asked for less motion —
+     an eased scroll is exactly the kind of movement that triggers discomfort. */
+  @media (prefers-reduced-motion: reduce) {
+    html,
+    body,
+    * {
+      scroll-behavior: auto !important;
+    }
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      Helvetica, Arial, sans-serif;
+  }
+}
+
+/* ---------------------------------------------------------------- gradient
+   Animated gradient surface, used by <GradientButton> and by the hero's trust
+   badge.
+
+   Every value the hover changes is a registered @property, which is the whole
+   point: custom properties are otherwise untyped strings and untweenable, so
+   the hover would snap. Declared with a type, the browser interpolates them and
+   the transition below actually runs.
+
+   Tailwind v4 note — the @property rules sit at the top level (they are
+   at-rules, not selectors, and belong to no layer), while the classes go in the
+   `components` layer so ordinary utility classes still win over them.
+
+   The angle is named --gb-border-angle, not --border-angle: the FAQ card's
+   travelling border already owns that name, and a second @property for one name
+   re-registers it globally with a different initial value. */
+
+@property --pos-x {
+  syntax: '<percentage>';
+  initial-value: 11.14%;
+  inherits: false;
+}
+@property --pos-y {
+  syntax: '<percentage>';
+  initial-value: 140%;
+  inherits: false;
+}
+@property --spread-x {
+  syntax: '<percentage>';
+  initial-value: 150%;
+  inherits: false;
+}
+@property --spread-y {
+  syntax: '<percentage>';
+  initial-value: 180.06%;
+  inherits: false;
+}
+@property --color-1 {
+  syntax: '<color>';
+  initial-value: #000;
+  inherits: false;
+}
+@property --color-2 {
+  syntax: '<color>';
+  initial-value: #08012c;
+  inherits: false;
+}
+@property --color-3 {
+  syntax: '<color>';
+  initial-value: #4e1e40;
+  inherits: false;
+}
+@property --color-4 {
+  syntax: '<color>';
+  initial-value: #70464e;
+  inherits: false;
+}
+@property --color-5 {
+  syntax: '<color>';
+  initial-value: #88394c;
+  inherits: false;
+}
+@property --gb-border-angle {
+  syntax: '<angle>';
+  initial-value: 20deg;
+  inherits: true;
+}
+@property --border-color-1 {
+  syntax: '<color>';
+  initial-value: hsla(340, 75%, 60%, 0.2);
+  inherits: true;
+}
+@property --border-color-2 {
+  syntax: '<color>';
+  initial-value: hsla(340, 75%, 40%, 0.75);
+  inherits: true;
+}
+@property --stop-1 {
+  syntax: '<percentage>';
+  initial-value: 37.35%;
+  inherits: false;
+}
+@property --stop-2 {
+  syntax: '<percentage>';
+  initial-value: 61.36%;
+  inherits: false;
+}
+@property --stop-3 {
+  syntax: '<percentage>';
+  initial-value: 78.42%;
+  inherits: false;
+}
+@property --stop-4 {
+  syntax: '<percentage>';
+  initial-value: 89.52%;
+  inherits: false;
+}
+@property --stop-5 {
+  syntax: '<percentage>';
+  initial-value: 100%;
+  inherits: false;
+}
+
+@layer components {
+  .gradient-button {
+    position: relative;
+    appearance: none;
+    cursor: pointer;
+    background: radial-gradient(
+      var(--spread-x) var(--spread-y) at var(--pos-x) var(--pos-y),
+      var(--color-1) var(--stop-1),
+      var(--color-2) var(--stop-2),
+      var(--color-3) var(--stop-3),
+      var(--color-4) var(--stop-4),
+      var(--color-5) var(--stop-5)
+    );
+    transition:
+      --pos-x 0.5s,
+      --pos-y 0.5s,
+      --spread-x 0.5s,
+      --spread-y 0.5s,
+      --color-1 0.5s,
+      --color-2 0.5s,
+      --color-3 0.5s,
+      --color-4 0.5s,
+      --color-5 0.5s,
+      --gb-border-angle 0.5s,
+      --border-color-1 0.5s,
+      --border-color-2 0.5s,
+      --stop-1 0.5s,
+      --stop-2 0.5s,
+      --stop-3 0.5s,
+      --stop-4 0.5s,
+      --stop-5 0.5s;
+  }
+
+  .gradient-button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      var(--gb-border-angle),
+      var(--border-color-1),
+      var(--border-color-2)
+    );
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    pointer-events: none;
+  }
+
+  .gradient-button:hover {
+    --pos-x: 0%;
+    --pos-y: 91.51%;
+    --spread-x: 120.24%;
+    --spread-y: 103.18%;
+    --color-1: #c96287;
+    --color-2: #c66c64;
+    --color-3: #cc7d23;
+    --color-4: #37140a;
+    --color-5: #000;
+    --gb-border-angle: 190deg;
+    --border-color-1: hsla(340, 78%, 90%, 0.1);
+    --border-color-2: hsla(340, 75%, 90%, 0.6);
+    --stop-1: 0%;
+    --stop-2: 8.8%;
+    --stop-3: 21.44%;
+    --stop-4: 71.34%;
+    --stop-5: 85.76%;
+  }
+
+  .gradient-button-variant {
+    --color-1: #000022;
+    --color-2: #1f3f6d;
+    --color-3: #469396;
+    --color-4: #f1ffa5;
+    --gb-border-angle: 200deg;
+    --border-color-1: hsla(320, 75%, 90%, 0.6);
+    --border-color-2: hsla(320, 50%, 90%, 0.15);
+  }
+
+  .gradient-button-variant:hover {
+    --pos-x: 0%;
+    --pos-y: 95.51%;
+    --spread-x: 110.24%;
+    --spread-y: 110.2%;
+    --color-1: #000020;
+    --color-2: #f1ffa5;
+    --color-3: #469396;
+    --color-4: #1f3f6d;
+    --color-5: #000;
+    --stop-1: 0%;
+    --stop-2: 10%;
+    --stop-3: 35.44%;
+    --stop-4: 71.34%;
+    --stop-5: 90.76%;
+    --gb-border-angle: 210deg;
+    --border-color-1: hsla(320, 75%, 90%, 0.2);
+    --border-color-2: hsla(320, 50%, 90%, 0.75);
+  }
+
+  /* Under reduced motion the gradient still changes on hover — it just gets
+     there instantly instead of easing over half a second. */
+  @media (prefers-reduced-motion: reduce) {
+    .gradient-button {
+      transition: none;
+    }
+  }
+}
