@@ -25,6 +25,17 @@ if (!url) {
 
 const sql = neon(url);
 
+/* Run a raw DDL string through the tagged-template function. The Neon HTTP
+   driver only executes template literals (not sql.query() in this version), so
+   a single-element strings array with a matching `.raw` makes a plain string
+   look like `sql`…``. Only ever called with our own schema text — never a
+   request value — so there is nothing to interpolate or escape. */
+function runRaw(text) {
+  const strings = [text];
+  strings.raw = [text];
+  return sql(strings);
+}
+
 /* The HTTP driver runs one statement per call, so the file is split on
    semicolons at end of line. The schema is plain DDL — no functions or dollar
    quoting — so this stays correct. */
@@ -36,7 +47,7 @@ const statements = schema
 
 console.log(`Applying schema (${statements.length} statements)…`);
 for (const statement of statements) {
-  await sql.query(statement);
+  await runRaw(statement);
 }
 console.log('  tables ready');
 
