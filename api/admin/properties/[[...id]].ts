@@ -13,6 +13,7 @@ import { toAdminProperty } from '../../_lib/shape.js';
 import { propertyInput } from '../../_lib/validate.js';
 
 export default handler(async (req: VercelRequest, res: VercelResponse) => {
+  if (req.query.__debug) return json(res, 200, { url: req.url, query: req.query, method: req.method });
   if (!requireSession(req, res)) return;   // must stay the first statement
   noStore(res);
 
