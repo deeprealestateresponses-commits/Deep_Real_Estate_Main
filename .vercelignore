@@ -1,36 +1,22 @@
-# Files that are not part of the deployed site.
+# Files not needed for the deployed site.
 #
-# Vercel uploads the whole repository before building. The legacy PHP app is
-# ~258 MB of it and none of it is served — `outputDirectory` is ui/dist, so only
-# the React build and the /api functions ever reach a visitor. Excluding it makes
-# deploys markedly faster and keeps the old source out of the build entirely.
+# outputDirectory is ui/dist, so only the ui/ build and the /api functions ever
+# reach a visitor. Everything below is dev-only or documentation.
 #
-# Nothing in ui/ or api/ references these paths. The two mentions of
-# "admin/assets" and "Contact_Us.php" in ui/src are comments explaining where a
-# design came from, not imports.
+# NOTE: patterns here match by basename at ANY depth. Do NOT add "admin/" — it
+# would also strip ui/src/admin/ (the React admin panel) from the upload and
+# break the build with "Cannot find module './admin/admin-panel'". The legacy
+# PHP that once needed excluding has been removed from the repo entirely.
 
-# The previous PHP application
-admin/
-oldWebsite/
-include/
-others/
-tools/
-assets/
-*.php
-style.css
-
-# Pre-rendered snapshot of the old site, built from fake data
-static/
-
-# Local test harness — an in-process database and the API compiled for it.
-# scripts/ is included here too: nothing on Vercel executes it, so uploading the
-# dev server (which carries a fixed development password) is needless surface.
+# Dev-only tooling: DB setup, password hashing, self-check, the local dev server.
 scripts/
+
+# Local test harness output (also gitignored, listed for belt-and-braces).
 .local-api/
 .local-db/
 .selfcheck/
 
-# Design/source files that are not web assets
-*.cdr
+# Docs and non-web source.
 README.md
 ADMIN.md
+*.cdr

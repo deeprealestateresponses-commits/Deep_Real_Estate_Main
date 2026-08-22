@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Deep Real Estate — React site (ui/) plus the serverless API behind the owner admin panel (api/).",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "hash-password": "node scripts/hash-password.mjs",
