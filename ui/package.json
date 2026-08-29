@@ -19,7 +19,7 @@
     "@vercel/blob": "^2.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "framer-motion": "^12.43.0",
+    "framer-motion": "^13.1.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.469.0",
     "react": "^19.0.0",
